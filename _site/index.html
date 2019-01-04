@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+    <title>Turing Security - Hack is magic</title>
+    <meta name="description" content="Turing Security - Hack is magic" />
+
+    <meta name="HandheldFriendly" content="True" />
+    <meta name="MobileOptimized" content="320" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/screen.css" />
+    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Merriweather:300,700,700italic,300italic|Open+Sans:700,400" />
+    <!-- Customisation  -->
+    <link rel="stylesheet" type="text/css" href="/assets/css/main.css" />
+
+</head>
+<body class="home-template">
+
+    <header class="main-header no-cover">
+    <nav class="main-nav overlay clearfix">
+            
+        <a class="subscribe-button icon-feed" href="/feed.xml">Subscribe</a>
+    </nav>
+    <div class="vertical">
+        <div class="main-header-content inner">
+            <h1 class="page-title">Turing Security</h1>
+            <h2 class="page-description">
+                 Hack is magic. 
+                 <a href='/about.html'> About me </a> 
+            </h2>
+        </div>
+    </div>
+    <a class="scroll-down icon-arrow-left" href="#content" data-offset="-45"><span class="hidden">Scroll Down</span></a>
+</header>
+
+
+<main id="content" class="content" role="main">
+
+
+    <div class="extra-pagination inner">
+        <nav class="pagination" role="pagination">
+    
+    <span class="page-number"> Page 1 of 1 </span>
+     
+</nav>
+    </div>
+
+    
+
+    <article class="post">
+        <header class="post-header">
+            <h2 class="post-title"><a href="/thriller/comedy/horror/2019/01/04/CVE-2016-0728.html">Linux keyring提权漏洞分析(CVE-2016-0728)</a></h2>
+        </header>
+        <section class="post-excerpt">
+            <p>#0x0 序
+本文深入分析今年初公开的一个Linux提权漏洞，分析该漏洞之前先介绍下Linux密钥保留服务，该服务主要用于在内核中缓存身份验证数据，使内核可以快速访问所需的密钥，还可以将密钥的操作（keyctl, add_key, request_key）委托给用户态程序，同时该服务定义了两个标准密钥类型user和keyring。每个进程都可以为当前会话创建或替换一个匿名或指定名称的keyring，keyring对象有一个usage字段保留进程对该对象的引用次数，漏洞发生在替换相同名称keyring时，usage引用计数泄露。</p>
+
+ <a class="read-more" href="/thriller/comedy/horror/2019/01/04/CVE-2016-0728.html">&raquo;</a>
+        </section>
+        <footer class="post-meta">
+            
+                <img class="author-thumb" src="/assets/images/profile.png" alt="Author's profile picture" nopin="nopin" />
+                TuringSec
+            
+             
+                on Thriller, Comedy, and Horror 
+            
+            <time class="post-date" datetime="2019-01-04">
+                04 Jan 2019
+            </time> 
+        </footer>
+    </article>
+
+    
+
+    <article class="post">
+        <header class="post-header">
+            <h2 class="post-title"><a href="/thriller/comedy/horror/2013/11/10/welcome-to-jekyll.html">Welcome to Jekyll!</a></h2>
+        </header>
+        <section class="post-excerpt">
+            <p>You’ll find this post in your <code>_posts</code> directory - edit this post and re-build (or run with the <code>-w</code> switch) to see your changes!
+To add new posts, simply add a file in the <code>_posts</code> directory that follows the convention: YYYY-MM-DD-name-of-post.ext.</p>
+
+ <a class="read-more" href="/thriller/comedy/horror/2013/11/10/welcome-to-jekyll.html">&raquo;</a>
+        </section>
+        <footer class="post-meta">
+            
+                <img class="author-thumb" src="/assets/images/profile.png" alt="Author's profile picture" nopin="nopin" />
+                TuringSec
+            
+             
+                on Thriller, Comedy, and Horror 
+            
+            <time class="post-date" datetime="2013-11-10">
+                10 Nov 2013
+            </time> 
+        </footer>
+    </article>
+
+    
+
+    <nav class="pagination" role="pagination">
+    
+    <span class="page-number"> Page 1 of 1 </span>
+     
+</nav>
+
+</main>
+
+    <footer class="site-footer clearfix">
+      <section class="copyright">
+        <a href="/">Turing Security</a> &copy; 
+              2019 &bull; All rights reserved.
+      </section>
+      <section class="poweredby">Made with Jekyll using 
+        <a href="http://github.com/rosario/kasper">Kasper theme</a>
+      </section>
+    </footer>
+    
+    <script type="text/javascript" src="/assets/js/jquery-1.11.1.min.js"></script>
+    <script type="text/javascript" src="/assets/js/jquery.fitvids.js"></script>
+    <script type="text/javascript" src="/assets/js/index.js"></script>
+
+    <!-- Google Analytics Tracking code -->
+    <script type="text/javascript">
+
+      var _gaq = _gaq || [];
+      _gaq.push(['_setAccount', 'UA-XXXXXXXX-X']);
+      _gaq.push(['_trackPageview']);
+
+      (function() {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+      })();
+
+    </script>   
+</body>
+</html>
