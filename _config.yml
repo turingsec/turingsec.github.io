@@ -1,16 +1,38 @@
-name: Turing Security
-description: Hack is magic
-meta_description: "Turing Security - Hack is magic"
+title: "Turing Security"
+author: "TuringSec"
+description: "Cyber security is what we do"
 
-markdown: kramdown
-highlighter: pygments
-logo: false
-paginate: 15
-baseurl: /
-domain_name: 'https://blog.turingsec.com'
-google_analytics: 'UA-XXXXXXXX-X'
-gems: [jekyll-paginate]
+# Jekyll settings
+permalink: /:title/          # see https://jekyllrb.com/docs/permalinks/
+paginate: 2                  # number of articles per page, remove to disable pagination
+excerpt_separator: "\n\n\n"  # indicates the end of the excerpt by two blank lines
 
-# Details for the RSS feed generator
-url:            'blog url'
-author:         'TuringSec'
+# Page settings
+show_excerpts: true          # show article previews on the home page instead of headlines
+hide_title: false            # remove site heading in the header
+post_footer: true            # show previous and next links at the end of each post
+date_format: "%B %d, %Y"     # see http://shopify.github.io/liquid/filters/date/
+
+# Theme settings
+style: default               # choose between "minimal", "default" and "frame"
+dark_nav: false              # keep header and footer dark (applies only when style: default and dark_theme: false are set)
+dark_theme: false            # enables dark mode
+
+navigation:                  # (optional) site navigation in the header
+  - index.html
+  - archive.md
+  - about.md
+
+icons:                       # (optional) icons in the header, see http://fontawesome.com/icons
+  envelope: "mailto:"
+  github: "https://github.com"
+  rss: "/feed.xml"
+
+comments:                    # embed disqus or isso comments
+#  disqus: ""
+#  isso: ""
+
+plugins: 
+ - jekyll-feed
+ - jekyll-paginate
+ - jekyll-default-layout
