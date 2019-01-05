@@ -1,0 +1,205 @@
+---
+layout: post
+title:  "探索x86_64内核syscall机制"
+date:   2016-04-06 12:12:00
+categories: Kernel
+---
+
+## 0x0 序
+system call是用户态与内核态交互的桥梁，本文以socket()为例，深入分析Linux x86_64架构下，内核是如何实现system call的。
+区别于用户态函数，内核态函数的调用并不是通过函数地址，而是一个系统调用号。由于被调用的函数处在内核中，所以需要一个特殊的汇编指令syscall，将CPU从R3转换到R0：
+
+```
+=> 0x7ffff7b106b0 [socket]:     mov    eax,0x29              //系统调用号
+   0x7ffff7b106b5 [socket+5]:   syscall                      //进入R0
+   0x7ffff7b106b7 [socket+7]:   cmp    rax,0xfffffffffffff001
+   0x7ffff7b106bd [socket+13]:  jae    0x7ffff7b106c0 <socket+16>
+   0x7ffff7b106bf [socket+15]:  ret
+</socket+16>
+```
+
+## 0x1 内核函数定义
+[这里](https://filippo.io/linux-syscall-table/)可以查到Linux x86_64下，系统调用号对应的内核函数。
+以socket()为例，[net/socket.c](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/net/socket.c#n1210)查看函数定义：
+
+```
+SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
+{
+	int retval;
+	struct socket *sock;
+	int flags;
+
+	/* Check the SOCK_* constants for consistency.  */
+	BUILD_BUG_ON(SOCK_CLOEXEC != O_CLOEXEC);
+	BUILD_BUG_ON((SOCK_MAX | SOCK_TYPE_MASK) != SOCK_TYPE_MASK);
+	BUILD_BUG_ON(SOCK_CLOEXEC & SOCK_TYPE_MASK);
+	BUILD_BUG_ON(SOCK_NONBLOCK & SOCK_TYPE_MASK);
+
+        . . .
+}
+```
+
+[SYSCALL_DEFINEx](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/include/linux/syscalls.h#n189)是内核中定义函数的标准方式，x表示函数参数个数，例如socket()就有3个参数。
+将SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)展开：
+
+```
+SYSCALL_METADATA(socket, 3, int, family, int, type, int, protocol)
+__SYSCALL_DEFINEx(3, socket, int, family, int, type, int, protocol)
+        asmlinkage long sys_socket(int family, int type, int protocol)       
+                __attribute__((alias(__stringify(SyS_socket))));         
+        static inline long SYSC_socket(int family, int type, int protocol);  
+        asmlinkage long SyS_socket(long int family, long int type, long int protocol);      
+        asmlinkage long SyS_socket(long int family, long int type, long int protocol)       
+        {                                                               
+                long ret = SYSC_socket((int)family, (int)type, (int)protocol);  
+                __MAP(x,__SC_TEST,__VA_ARGS__);                         
+                asmlinkage_protect(x, ret, family, type, protocol);       
+                return ret;                                             
+        }                                                               
+        static inline long SYSC_socket(int family, int type, int protocol)
+        {
+                int retval;
+	        struct socket *sock;
+	        int flags;
+                
+	        /* Check the SOCK_* constants for consistency.  */
+	        BUILD_BUG_ON(SOCK_CLOEXEC != O_CLOEXEC);
+	        BUILD_BUG_ON((SOCK_MAX | SOCK_TYPE_MASK) != SOCK_TYPE_MASK);
+	        BUILD_BUG_ON(SOCK_CLOEXEC & SOCK_TYPE_MASK);
+	        BUILD_BUG_ON(SOCK_NONBLOCK & SOCK_TYPE_MASK);
+                
+                . . .
+        }
+```
+
+首先，只有当编译内核时定义了[CONFIG_FTRACE_SYSCALLS](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/include/linux/syscalls.h#n110)宏，SYSCALL_METADATA才会展开，关于该宏的含义可以参考[这里](https://lwn.net/Articles/604406/)。
+接下来__SYSCALL_DEFINEx定义了3个函数，sys_socket、SYS_socket、SYSC_socket，而SYSC_socket才是真正包含代码的函数，但因为声明为static，所以需要通过SYS_socket间接调用。sys_socket和SYS_socket前面都有关键字asmlinkage修饰，asmlinkage表示函数希望参数出现在栈上，而不是通过寄存器传参。而sys_socket是SYS_socket的别名，内核其它代码可以通过[此处定义](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/include/linux/syscalls.h#n624)调用该函数。
+
+## 0x2 内核函数映射表sys_call_table
+在x86_64架构上，[arch/x86/syscalls/syscall_64.tbl](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/x86/syscalls/syscall_64.tbl?h=v3.18)映射了系统调用号到函数定义的关系。同目录的[syscalltbl.sh脚本](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/x86/syscalls/syscalltbl.sh?h=v3.18)，根据syscall_64.tbl生成一个头文件arch/x86/include/generated/asm/syscalls_64.h，并用[__SYSCALL_COMMON](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/x86/kernel/syscall_64.c?h=v3.18)(41, sys_socket,sys_socket)将系统调用号和系统函数地址做映射，最终保存到[sys_call_table](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/x86/kernel/syscall_64.c?h=v3.18)数组。
+
+## 0x3 system call过程
+进程用户态执行syscall指令后进入到内核入口函数[system_call()](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/x86/kernel/entry_64.S?h=v3.18#n386)，此时寄存器状态：
+
+- rax->系统调用号
+- rdi->参数1
+- rsi->参数2
+- rdx->参数3
+- r10->参数4
+- r8->参数5
+- r9->参数6
+
+system_call()的地址在[内核初始化](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/x86/kernel/cpu/common.c?h=v3.18#n1338)时被[syscall_init()](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/x86/kernel/cpu/common.c?h=v3.18#n1173)写入进MSR_LSTAR寄存器，该寄存器的作用是保存syscall指令的处理函数地址。
+
+```
+void syscall_init(void)
+{
+	/*
+	 * LSTAR and STAR live in a bit strange symbiosis.
+	 * They both write to the same internal register. STAR allows to
+	 * set CS/DS but only a 32bit target. LSTAR sets the 64bit rip.
+	 */
+	wrmsrl(MSR_STAR,  ((u64)__USER32_CS)<<48  | ((u64)__KERNEL_CS)<<32);
+	wrmsrl(MSR_LSTAR, system_call);
+	wrmsrl(MSR_CSTAR, ignore_sysret);
+
+        . . .
+}
+
+/* CPU model specific register (MSR) numbers */
+/* x86-64 specific MSRs */
+#define MSR_EFER		0xc0000080 /* extended feature register */
+#define MSR_STAR		0xc0000081 /* legacy mode SYSCALL target */
+#define MSR_LSTAR		0xc0000082 /* long mode SYSCALL target */
+#define MSR_CSTAR		0xc0000083 /* compat mode SYSCALL target */
+#define MSR_SYSCALL_MASK	0xc0000084 /* EFLAGS mask for syscall */
+#define MSR_FS_BASE		0xc0000100 /* 64bit FS base */
+#define MSR_GS_BASE		0xc0000101 /* 64bit GS base */
+#define MSR_KERNEL_GS_BASE	0xc0000102 /* SwapGS GS shadow */
+#define MSR_TSC_AUX		0xc0000103 /* Auxiliary TSC */
+```
+
+于是当syscall指令执行时，CPU从R3转换到R0，并跳转到MSR_LSTAR保存的system_call()地址。
+
+```
+gdb-peda$ disassemble $pc, $pc+0xd3
+Dump of assembler code from 0xffffffff8177af90 to 0xffffffff8177b063:
+=>[system_call+0]:  swapgs                            //保存用户态GS，设置内核GS      
+  [system_call+3]:  mov    QWORD PTR gs:0xb000,rsp    //保存用户态栈指针
+  [system_call+12]: mov    rsp,QWORD PTR gs:0xb788    //设置内核态栈指针
+  [system_call+21]: sti    
+  [system_call+22]: data32 data32 xchg ax,ax
+  [system_call+26]: data32 xchg ax,ax
+  [system_call+29]: sub    rsp,0x50                   //还记得asmlinkage么，将参数复制到栈上
+  [system_call+33]: mov    QWORD PTR [rsp+0x40],rdi
+  [system_call+38]: mov    QWORD PTR [rsp+0x38],rsi
+  [system_call+43]: mov    QWORD PTR [rsp+0x30],rdx
+  [system_call+48]: mov    QWORD PTR [rsp+0x20],0xffffffffffffffda
+  [system_call+57]: mov    QWORD PTR [rsp+0x18],r8
+  [system_call+62]: mov    QWORD PTR [rsp+0x10],r9
+  [system_call+67]: mov    QWORD PTR [rsp+0x8],r10
+  [system_call+72]: mov    QWORD PTR [rsp],r11
+  [system_call+76]: mov    QWORD PTR [rsp+0x48],rax
+  [system_call+81]: mov    QWORD PTR [rsp+0x50],rcx
+  [system_call+86]: test   DWORD PTR [rsp-0x3f78],0x100801d1
+  [system_call+97]: jne    0xffffffff8177b0e2 [tracesys]
+  [system_call_fastpath+0]: and    eax,0xbfffffff
+  [system_call_fastpath+5]: cmp    eax,0x220
+  [system_call_fastpath+10]:        ja     0xffffffff8177b012 [ret_from_sys_call]
+  [system_call_fastpath+12]:        mov    rcx,r10
+  [system_call_fastpath+15]:        call   QWORD PTR [rax*8-0x7e7feba0] //从sys_call_table取出内核函数指针
+  [system_call_fastpath+22]:        mov    QWORD PTR [rsp+0x20],rax     //保存返回值
+  [ret_from_sys_call+0]:    mov    edi,0x1008feff
+  [sysret_check+0]: cli    
+  [sysret_check+1]: data32 data32 xchg ax,ax
+  [sysret_check+5]: data32 xchg ax,ax
+  [sysret_check+8]: mov    edx,DWORD PTR [rsp-0x3f78]
+  [sysret_check+15]:        and    edx,edi
+  [sysret_check+17]:        jne    0xffffffff8177b065 [sysret_careful]
+  [sysret_check+19]:        mov    rcx,QWORD PTR [rsp+0x50]
+  [sysret_check+24]:        mov    r11,QWORD PTR [rsp]
+  [sysret_check+28]:        mov    r10,QWORD PTR [rsp+0x8]
+  [sysret_check+33]:        mov    r9,QWORD PTR [rsp+0x10]
+  [sysret_check+38]:        mov    r8,QWORD PTR [rsp+0x18]
+  [sysret_check+43]:        mov    rax,QWORD PTR [rsp+0x20]             //rax保存返回值
+  [sysret_check+48]:        mov    rdx,QWORD PTR [rsp+0x30]
+  [sysret_check+53]:        mov    rsi,QWORD PTR [rsp+0x38]
+  [sysret_check+58]:        mov    rdi,QWORD PTR [rsp+0x40]
+  [sysret_check+63]:        mov    rsp,QWORD PTR gs:0xb000              //恢复用户态栈指针
+  [sysret_check+72]:        swapgs                                      //恢复用户态GS
+  [sysret_check+75]:        rex.W sysret                                //回到用户态
+```
+  
+以socket()为例，以rax为索引从sys_call_table取出sys_socket指针并调用：
+
+```
+gdb-peda$ 
+Warning: not running or target is remote
+[signal handler called]
+5: /x $rsp = 0xffff88006ba9bf88
+4: /x $rcx = 0x19
+3: /x $rbx = 0x2440f70
+2: /x $rax = 0x29
+1: x/6i $pc
+=> 0xffffffff8177b006 [system_call_fastpath+15]:        call   QWORD PTR [rax*8-0x7e7feba0]
+   0xffffffff8177b00d [system_call_fastpath+22]:        mov    QWORD PTR [rsp+0x20],rax
+   0xffffffff8177b012 [ret_from_sys_call]:              mov    edi,0x1008feff
+   0xffffffff8177b017 [sysret_check]:   cli    
+   0xffffffff8177b018 [sysret_check+1]: data32 data32 xchg ax,ax
+   0xffffffff8177b01c [sysret_check+5]: data32 xchg ax,ax
+gdb-peda$ si
+Warning: not running or target is remote
+SyS_socket (family=0xd, type=0x7fff61ec8780, protocol=0x0) at net/socket.c:1374
+1374    SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
+5: /x $rsp = 0xffff88006ba9bf80
+4: /x $rcx = 0x19
+3: /x $rbx = 0x2440f70
+2: /x $rax = 0x29
+1: x/6i $pc
+=> 0xffffffff81655ed0 [SyS_socket]:     data32 data32 data32 xchg ax,ax
+   0xffffffff81655ed5 [SyS_socket+5]:   push   rbp
+   0xffffffff81655ed6 [SyS_socket+6]:   mov    rax,0xffffffffffffffea
+   0xffffffff81655edd [SyS_socket+13]:  mov    rbp,rsp
+   0xffffffff81655ee0 [SyS_socket+16]:  push   r13
+   0xffffffff81655ee2 [SyS_socket+18]:  push   r12
+```
