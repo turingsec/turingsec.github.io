@@ -8,9 +8,9 @@ categories: Kernel
 ## 0x0 序
 本篇文章在《Linux下的堆管理》基础上，分析一个CTF堆溢出题目shellman的利用过程，附上链接地址：
 
-[exp下载](turingsec.github.io/knowledge/posts/glibc_heap_overflow/exp.py)
-[shellman下载](turingsec.github.io/knowledge/posts/glibc_heap_overflow/shellman.zip)
-[gdb插件peda](https://github.com/longld/peda)
+- [exp下载](turingsec.github.io/knowledge/posts/glibc_heap_overflow/exp.py)
+- [shellman下载](turingsec.github.io/knowledge/posts/glibc_heap_overflow/shellman.zip)
+- [gdb插件peda](https://github.com/longld/peda)
 
 shellman在初始化时调用了alarm(60)，为调试带来点小障碍，在gdb中关闭即可：
 
@@ -35,7 +35,7 @@ SIGALRM       No        Yes     No              Alarm clock
 
 在Edit的处理过程中，没有对原来shellcode buffer的长度做检查，导致了堆溢出
 
-![图片1](turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片1.png)
+![图片1](https://turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片1.png)
         
 ## 0x2 利用原理
 《Linux下的堆管理》中提到，small chunk和large chunk在free的过程中会查看地址相邻的前后chunk是否是空闲状态，如果是的话会进行unlink操作，合并成一个更大的chunk，减少内存碎片。
@@ -99,7 +99,7 @@ edit shellcode1时, 需要构造chunk1->fd和chunk1->bk使其绕过安全检查�
 
 绕过安全检查，得到一次固定地址写入的机会，最终shell_address不再指向chunk1而是shell_address - 0x18。
 
-![图片5](turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片5.png)
+![图片5](https://turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片5.png)
 
 shell_address现在指向自身 - 0x18的低地址，那么再次edit shellcode1的话，程序往这个地址写数据，新的数据会再次覆盖shell_address，使其指向任意地址，加上程序拥有list shellcode功能，因此固定地址写入成功转化成了任意地址读写。
 
@@ -132,7 +132,7 @@ OFFSET           TYPE              VALUE
 要做到system('/bin/sh')，还需要一点努力。
 由于现在可以任意地址读写，可以利用泄露free函数地址来计算system函数地址。将free在got表的偏移0x601600写入shell_address
 
-![图片6](turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片6.png)
+![图片6](https://turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片6.png)
 
 接下来list shellcode，返回的值就是free函数地址。在libc.so.6中查看free的偏移为0x82df0，system的偏移为0x46640，计算system地址：
 system地址 = free_address - 0x82df0 + 0x46640。
@@ -140,11 +140,11 @@ system地址 = free_address - 0x82df0 + 0x46640。
 ## 0x4 触发system('/bin/sh')
 现在shell_address指向0x601600，可以再次edit shellcode1，将system函数地址覆盖free函数地址，之后任意的free调用都会错误的调用到system函数，并将参数传递给system()：
 
-![图片3](turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片3.png)
+![图片3](https://turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片3.png)
 
 成功获得shell：
 
-![图片4](turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片4.png)
+![图片4](https://turingsec.github.io/knowledge/posts/glibc_heap_overflow/图片4.png)
 
 0x5 总结
 说说EXP的利用流程，分为以下几个步骤：
